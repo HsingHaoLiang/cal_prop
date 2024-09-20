@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[16]:
-
-
 #real model and calculate properties
 import math
 import numpy as np
@@ -95,10 +92,6 @@ for m in range(41,42):
 
         f.close()
 
-
-# In[12]:
-
-
 #readfile
 import math
 import pandas as pd
@@ -172,29 +165,22 @@ for i in range(0,len(data_file)):
         m = m + 1
         n = 0
 
-
-# In[13]:
-
-
-print("chemical T(K) Tb(K)(1~100) Tc(K)(1~100) lnPc(1~100) lnPvap(1~100)")
-print(int(id_average[0])," ",T[0],end=" ")
-for i in range(0,100)    :
-    print("{:.2f}".format(data_file[0][2][i]),end=" ") #data_file[compound][property(2=Tb, 3=Tc, 4=Pc, 5=Pr)][number_file]
-for i in range(0,100)    :
-    print("{:.2f}".format(data_file[0][3][i]),end=" ")
-for i in range(0,100)    :
-    print("{:.2f}".format(data_file[0][4][i]),end=" ")
-for i in range(0,100)    :
-    print("{:.2f}".format(data_file[0][5][i]+data_file[0][4][0]),end=" ")
-print("")
-
-print("chemical T Tb(K)(avg+std) Tc(K)(avg+std) lnPc(avg+std) T(K) lnPr(T)(avg+std)")
-print(id_average[0]," ",T[0],end=" ")
-print("{:.2f}({:.2f}) {:.2f}({:.2f}) {:.2f}({:.2f}) {:.2f}({:.2f})".format(mean_Tb[0],std_Tb[0],mean_Tc[0],std_Tc[0],mean_Pc[0],std_Pc[0],mean_pvap[0],std_pvap[0]))
-
-
-# In[ ]:
-
+for j in range(0,len(id_average[0])):
+    print("chemical T(K) Tb(K)(1~100) Tc(K)(1~100) lnPc(1~100) lnPvap(1~100)")
+    print(int(id_average[j])," ",T[j],end=" ")
+    for i in range(0,100):
+        print("{:.2f}".format(data_file[j][2][i]),end=" ") #data_file[compound][property(2=Tb, 3=Tc, 4=Pc, 5=Pr)][number_file]
+    for i in range(0,100):
+        print("{:.2f}".format(data_file[j][3][i]),end=" ")
+    for i in range(0,100):
+        print("{:.2f}".format(data_file[j][4][i]),end=" ")
+    for i in range(0,100):
+        print("{:.2f}".format(data_file[j][5][i]+data_file[0][4][0]),end=" ")
+    print("")
+for j in range(0,len(id_average[0])):
+    print("chemical T Tb(K)(avg+std) Tc(K)(avg+std) lnPc(avg+std) T(K) lnPr(T)(avg+std)")
+    print(id_average[j]," ",T[j],end=" ")
+    print("{:.2f}({:.2f}) {:.2f}({:.2f}) {:.2f}({:.2f}) {:.2f}({:.2f})".format(mean_Tb[j],std_Tb[j],mean_Tc[j],std_Tc[j],mean_Pc[j],std_Pc[j],mean_pvap[j],std_pvap[j]))
 
 
 
