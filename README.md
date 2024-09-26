@@ -1,2 +1,5 @@
 # cal_prop
 calculate property
+test.txt is the input file for ML models, the first index is compound and it needs to be float or integer, 2~325 are sigma profile of compound, 326~336 are reduced temperature, 337~347 are reduced pressure at certain reduced temperature(326~336) predicted by PR+COSMOSAC EOS, 348 is the reduced temperature what you want to predict, 349 is reduced pressure at reduced temperature(348) predicted by PR+COSMOSAC EOS, 350~352 are the boiling temperature, critical temperature and critical pressure respectively predicted by PR+COSMOSAC EOS and 353~356 are experimental values of boiling temperature, critical temperature and critical pressure respectively. Experimental value is not nesscessary. You can replace it with any arbitrary values.
+In the test.txt, 16703 is water and 16131 is ethanol
+Before you run this programm you need to download Keras, 
