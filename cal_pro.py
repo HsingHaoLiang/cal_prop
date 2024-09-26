@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 #real model and calculate properties
 import math
 import numpy as np
@@ -12,6 +9,7 @@ from keras.layers import Input, Embedding, Dense, Activation, LSTM, concatenate,
 from keras_self_attention import SeqSelfAttention
 from keras.optimizers import Adam
 from keras.preprocessing import sequence
+import os
 
 #normalize and renormalize
 def normalize_test(original, ave, std):
@@ -22,10 +20,11 @@ def renormalize(normalized, ave, std):
     back = (normalized*std) + ave
     return back
 
-df = pd.read_csv('ave_std.csv')
 #read ave and std
-for m in range(41,42):
-    for k in range(1,2):
+df = pd.read_csv('./ave_std.csv')
+
+for m in range(41,51):
+    for k in range(1,11):
         n = 32*(m-41)
         ave = df.iloc[n:n+27,0]
         std = df.iloc[n:n+27,1]
@@ -40,7 +39,7 @@ for m in range(41,42):
         ave_pvap = df.iloc[n+31,0]
         std_pvap = df.iloc[n+31,1]
 
-        strtemp = "./testdata" + str(m) + "_Trcri_PRSAC.txt"
+        strtemp = "./test.txt"
         data2 = np.loadtxt(strtemp) #read test file
         id_test = data2[:,0:1]
         x_test = data2[:,1:len(data2[0])-31]
@@ -63,7 +62,7 @@ for m in range(41,42):
         x_test  = np.hstack([x_test ,x_test_normalized])
 
         # load model
-        strtemp = "./model_save/PRSAC_TbTcPcPvap" + str(m) + "_351_1.h5"
+        strtemp = "./model_save/PRSAC_TbTcPcPvap" + str(m) + "_351_" + str(k) + ".h5"
         model = load_model(strtemp, custom_objects={'SeqSelfAttention': SeqSelfAttention})
 
         #print(model.summary())
@@ -71,7 +70,6 @@ for m in range(41,42):
         z3 = model.predict(x_test)
 
         z3_renormalized = renormalize(z3[2], ave_Tc, std_Tc)
-
         z6_renormalized = renormalize(z3[3], ave_Pc, std_Pc)
         z9_renormalized = renormalize(z3[1], ave_Tb, std_Tb)
         z12_renormalized = renormalize(z3[0], ave_pvap, std_pvap)
@@ -80,7 +78,6 @@ for m in range(41,42):
         Tb_test_renormalized = renormalize(Tb_test, ave_Tb, std_Tb)
         Tc_test_renormalized = renormalize(Tc_test, ave_Tc, std_Tc)
         Pc_test_renormalized = renormalize(Pc_test, ave_Pc, std_Pc)
-    
 
         strtemp = "TbTcPc_new_test" + str(m) + "_351_" + str(k) + ".txt"
         f  = open(strtemp,"w")
@@ -93,83 +90,57 @@ for m in range(41,42):
         f.close()
 
 #readfile
-import math
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-
-point=8 #number of datapoints of one compound
+datapoint=2 #number of datapoints
 descriptor = "_351_" #input descriptors
 
-data_file = np.zeros((18860*point,13,100))
+data_file = np.zeros((datapoint,5,100))
 
 for j in range(41,51):
     for k in range(1,11):
-        strtemp = "TbTcPc_new_" + str(j) + descriptor + str(k) + ".txt"
+        strtemp = "TbTcPc_new_test" + str(j) + descriptor + str(k) + ".txt"
         data = np.loadtxt(strtemp,skiprows=1)
         for i in range(len(data)):
             for l in range(len(data[0])):
                 data_file[i][l][10*(j-41)+k-1] = data[i][l]
+        
+        file_path = strtemp
+        if os.path.exists(file_path):
+            # remove file
+            os.remove(file_path)
 
 #calculate average, std, maximum and minimum
-mean_Tb = np.zeros(18860*point)
-std_Tb = np.zeros(18860*point)
-mean_Tc = np.zeros(18860*point)
-std_Tc = np.zeros(18860*point)
-mean_Pc = np.zeros(18860*point)
-std_Pc = np.zeros(18860*point)
-mean_pvap = np.zeros(18860*point)
-std_pvap = np.zeros(18860*point)
+mean_Tb = np.zeros(datapoint)
+std_Tb = np.zeros(datapoint)
+mean_Tc = np.zeros(datapoint)
+std_Tc = np.zeros(datapoint)
+mean_Pc = np.zeros(datapoint)
+std_Pc = np.zeros(datapoint)
+mean_pvap = np.zeros(datapoint)
+std_pvap = np.zeros(datapoint)
 
-max_Tb[:]  = np.max(data_file,axis=2)[0:,2]
-min_Tb[:]  = np.min(data_file,axis=2)[0:,2]
 mean_Tb[:] = np.mean(data_file,axis=2)[0:,2]
 std_Tb[:]  = np.std(data_file,axis=2,ddof=1)[0:,2]
-max_Tc[:]  = np.max(data_file,axis=2)[0:,3]
-min_Tc[:]  = np.min(data_file,axis=2)[0:,3]
 mean_Tc[:] = np.mean(data_file,axis=2)[0:,3]
 std_Tc[:]  = np.std(data_file,axis=2,ddof=1)[0:,3]
-max_Pc[:]  = np.max(data_file,axis=2)[0:,4]
-min_Pc[:]  = np.min(data_file,axis=2)[0:,4]
 mean_Pc[:] = np.mean(data_file,axis=2)[0:,4]
 std_Pc[:]  = np.std(data_file,axis=2,ddof=1)[0:,4]
-max_pvap[:]  = np.max(data_file,axis=2)[0:,5]
-min_pvap[:]  = np.min(data_file,axis=2)[0:,5]
 mean_pvap[:] = np.mean(data_file,axis=2)[0:,5]
 std_pvap[:]  = np.std(data_file,axis=2,ddof=1)[0:,5]
 
-Tb_average = np.zeros(18860)
-Tc_average = np.zeros(18860)
-Pc_average = np.zeros(18860)
-id_average = np.zeros(18860)
-T = np.zeros(18860)
+id_average = np.zeros(datapoint)
+T = np.zeros(datapoint)
 
-m = 0
+for i in range(0,datapoint):
+    id_average[i] = int(data_file[i][0][0])
+    T[i] = data_file[i][1][0]
 
-for i in range(4,len(data_file),point):
-    Tb_average[m] = mean_Tb[i]
-    Tc_average[m] = mean_Tc[i]
-    Pc_average[m] = mean_Pc[i]
-    id_average[m] = int(data_file[i][0][0])
-    T = float(data_file[i][1][0])
-    m = m + 1
-
-pvap_cal = np.zeros((18860,point))
-m = 0
-n = 0
-
-for i in range(0,len(data_file)):
-    pvap_cal[m][n] = mean_pvap[i] 
-    n = n + 1
-    if n == 8:
-        m = m + 1
-        n = 0
-
-for j in range(0,len(id_average[0])):
+for j in range(0,len(id_average)):
     print("chemical T(K) Tb(K)(1~100) Tc(K)(1~100) lnPc(1~100) lnPvap(1~100)")
-    print(int(id_average[j])," ",T[j],end=" ")
+    
+    print(id_average[j],end=" ")
+    print("{:.2f}".format(T[j]))
     for i in range(0,100):
-        print("{:.2f}".format(data_file[j][2][i]),end=" ") #data_file[compound][property(2=Tb, 3=Tc, 4=Pc, 5=Pr)][number_file]
+        print("{:.2f}".format(data_file[j][2][i]),end=" ") #data_file[datapoint][property(2=Tb, 3=Tc, 4=Pc, 5=Pr)][number of models]
     for i in range(0,100):
         print("{:.2f}".format(data_file[j][3][i]),end=" ")
     for i in range(0,100):
@@ -177,10 +148,7 @@ for j in range(0,len(id_average[0])):
     for i in range(0,100):
         print("{:.2f}".format(data_file[j][5][i]+data_file[0][4][0]),end=" ")
     print("")
-for j in range(0,len(id_average[0])):
+for j in range(0,len(id_average)):
     print("chemical T Tb(K)(avg+std) Tc(K)(avg+std) lnPc(avg+std) T(K) lnPr(T)(avg+std)")
-    print(id_average[j]," ",T[j],end=" ")
-    print("{:.2f}({:.2f}) {:.2f}({:.2f}) {:.2f}({:.2f}) {:.2f}({:.2f})".format(mean_Tb[j],std_Tb[j],mean_Tc[j],std_Tc[j],mean_Pc[j],std_Pc[j],mean_pvap[j],std_pvap[j]))
-
-
-
+    print(id_average[j],end=" ")
+    print("{:.2f} {:.2f}({:.2f}) {:.2f}({:.2f}) {:.2f}({:.2f}) {:.2f}({:.2f})".format(T[j],mean_Tb[j],std_Tb[j],mean_Tc[j],std_Tc[j],mean_Pc[j],std_Pc[j],mean_pvap[j],std_pvap[j]))
