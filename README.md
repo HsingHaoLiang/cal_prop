@@ -67,7 +67,7 @@ pip install tensorflow-gpu==2.3.0
 
 ```bash
 conda env create -f environment.yml
-conda activate pvap_infer_tf23_cpu
+conda activate cal_prop
 ```
 
 Verify installation:
@@ -96,7 +96,7 @@ Expected versions:
 ### Single SMILES, multiple temperatures
 
 ```bash
-python predict_realt_multi.py   --task both_real --rep FP   --smiles "CCCCCC(C)Br"   --temps 298.15,320,350   --i-list 1-10 --j-list 1-3   --out-csv out_single_real.csv
+python predict.py   --task both_real --rep FP   --smiles "CCCCCC(C)Br"   --temps 298.15,320,350   --i-list 1-10 --j-list 1-3   --out-csv output.csv
 ```
 
 ---
