@@ -59,6 +59,7 @@ pip install tensorflow-gpu==2.3.0
 
 > Notes:
 > - TensorFlow 2.3.0 requires `numpy < 1.19.0`
+> - Do **not** install `tensorflow` and `tensorflow-gpu` at the same time
 > - GPU inference requires compatible CUDA/cuDNN (not included)
 
 ---
@@ -67,7 +68,7 @@ pip install tensorflow-gpu==2.3.0
 
 ```bash
 conda env create -f environment.yml
-conda activate cal_prop
+conda activate pvap_infer_tf23_cpu
 ```
 
 Verify installation:
@@ -98,7 +99,6 @@ Expected versions:
 Example (real vapor pressure + properties, CSV input):
 
 ```bash
-<<<<<<< HEAD
 python predict.py \
   --xlsx-path input_features.xlsx \
   --smiles-csv smiles_Tr.csv --smiles-col smiles --temp-col "T(K)" \
@@ -109,9 +109,6 @@ python predict.py \
   --i-list 1-10 \
   --j-list 1-10 \
   --out-csv output.csv
-=======
-python predict.py   --task both_real --rep FP   --smiles "CCCCCC(C)Br"   --temps 298.15,320,350   --i-list 1-10 --j-list 1-3   --out-csv output.csv
->>>>>>> d1a67e4c98ed9fd9f3dc539fdee8d66cff10ee63
 ```
 
 > If your script uses `--tr-col "T(K)"` for a real-temperature task, rename it to `--temp-col "T(K)"` (or adjust according to the argument name in your `predict.py`).
