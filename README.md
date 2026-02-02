@@ -192,5 +192,5 @@ MIT License. See `LICENSE` for details.
 
 ## 👤 Maintained By
 
-Maintained by HsingHao Liang (@HsingHaoLiang).  
+Maintained by HsingHao Liang ([@HsingHaoLiang](https://github.com/HsingHaoLiang)).  
 COMET, Department of Chemical Engineering, National Taiwan University
