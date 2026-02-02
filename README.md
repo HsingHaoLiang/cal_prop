@@ -59,7 +59,6 @@ pip install tensorflow-gpu==2.3.0
 
 > Notes:
 > - TensorFlow 2.3.0 requires `numpy < 1.19.0`
-> - Do **not** install `tensorflow` and `tensorflow-gpu` at the same time
 > - GPU inference requires compatible CUDA/cuDNN (not included)
 
 ---
