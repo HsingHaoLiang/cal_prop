@@ -1,6 +1,6 @@
 python predict.py \
   --xlsx-path input_features.xlsx \
-  --smiles-csv smiles_Tr.csv --smiles-col smiles --tr-col "T(K)" \
+  --smiles-csv example.csv --smiles-col smiles --tr-col "T(K)" \
   --model-dir ./model_save \
   --stats-json normalization_stats.json \
   --rep FP \
