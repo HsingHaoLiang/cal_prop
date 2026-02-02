@@ -59,7 +59,6 @@ pip install tensorflow-gpu==2.3.0
 
 > Notes:
 > - TensorFlow 2.3.0 requires `numpy < 1.19.0`
-> - Do **not** install `tensorflow` and `tensorflow-gpu` at the same time
 > - GPU inference requires compatible CUDA/cuDNN (not included)
 
 ---
@@ -68,7 +67,7 @@ pip install tensorflow-gpu==2.3.0
 
 ```bash
 conda env create -f environment.yml
-conda activate pvap_infer_tf23_cpu
+conda activate cal_prop
 ```
 
 Verify installation:
@@ -94,23 +93,73 @@ Expected versions:
 
 ## 🚀 Usage
 
-### Single SMILES, multiple temperatures
+### Option A: Run with a Python command
+
+Example (real vapor pressure + properties, CSV input):
 
 ```bash
-python predict_realt_multi.py   --task both_real --rep FP   --smiles "CCCCCC(C)Br"   --temps 298.15,320,350   --i-list 1-10 --j-list 1-3   --out-csv out_single_real.csv
+<<<<<<< HEAD
+python predict.py \
+  --xlsx-path input_features.xlsx \
+  --smiles-csv smiles_Tr.csv --smiles-col smiles --temp-col "T(K)" \
+  --model-dir ./model_save \
+  --stats-json normalization_stats.json \
+  --rep FP \
+  --task both_real \
+  --i-list 1-10 \
+  --j-list 1-10 \
+  --out-csv output.csv
+=======
+python predict.py   --task both_real --rep FP   --smiles "CCCCCC(C)Br"   --temps 298.15,320,350   --i-list 1-10 --j-list 1-3   --out-csv output.csv
+>>>>>>> d1a67e4c98ed9fd9f3dc539fdee8d66cff10ee63
 ```
 
----
+> If your script uses `--tr-col "T(K)"` for a real-temperature task, rename it to `--temp-col "T(K)"` (or adjust according to the argument name in your `predict.py`).
+>
+> Note: for `both_real` / `pvap_real`, the CSV should contain a **temperature column in Kelvin** (e.g. `T(K)`).
+
+### Option B: Run using the provided shell script (`predict.sh`)
+
+For convenience, this repository provides a wrapper script `predict.sh` which runs an
+equivalent command.
+
+#### Step 1: Make the script executable
+```bash
+chmod +x predict.sh
+```
+
+#### Step 2: Run
+```bash
+./predict.sh
+```
+
+The current `predict.sh` content is:
+
+```bash
+python predict.py \
+  --xlsx-path input_features.xlsx \
+  --smiles-csv smiles_Tr.csv --smiles-col smiles --tr-col "T(K)" \
+  --model-dir ./model_save \
+  --stats-json normalization_stats.json \
+  --rep FP \
+  --task both_real \
+  --i-list 1-10 \
+  --j-list 1-10 \
+  --out-csv output.csv
+```
+
+Edit `predict.sh` to customize `--task`, `--rep`, input CSV path/column names, ensemble ranges, and output path.
 
 ## 📁 Repository Structure
 
 ```text
 .
-├── predict_realt_multi.py
-├── environment.yml
+├── predict.py                 # main inference script
+├── predict.sh                 # convenience shell wrapper
+├── environment.yml             # reproducible environment
 ├── normalization_stats.json
-├── models/
-├── smiles.csv
+├── model_save/                 # trained Keras models
+├── smiles_Tr.csv               # example CSV input
 └── README.md
 ```
 
