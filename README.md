@@ -204,7 +204,7 @@ A fully reproducible Conda environment is provided.
 
 ## 📜 License
 
-MIT License. See `LICENSE` for details.
+MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
