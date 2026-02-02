@@ -172,6 +172,24 @@ The BibTeX entry will be provided once the paper is accepted.
 
 ---
 
+## 📚 References
+
+The molecular fingerprints (FP) used in this repository are derived from the
+directed message passing neural network (D-MPNN) framework described in the
+following work:
+
+1. Yen-Hsiang Lin, Hsin-Hao Liang, Shiang-Tai Lin, Yi-Pei Li,  
+   *Advancing vapor pressure prediction: A machine learning approach with directed message passing neural networks*,  
+   **Journal of the Taiwan Institute of Chemical Engineers**, 2024.  
+   https://doi.org/10.1016/j.jtice.2024.105926
+
+This repository does **not** redistribute the original publication or its
+supplementary materials. Users are encouraged to consult the original article
+for detailed descriptions of the D-MPNN architecture, fingerprint construction,
+and training methodology.
+
+---
+
 ## 🧪 Tested Environment
 
 - Python 3.7.16
