@@ -149,18 +149,15 @@ Edit `predict.sh` to customize `--task`, `--rep`, input CSV path/column names, e
 
 ## 📁 Repository Structure
 
-```text
-.
-├── predict.py                 # main inference script
-├── predict.sh                 # convenience shell wrapper
-├── environment.yml             # reproducible environment
-├── normalization_stats.json
-├── model_save/                 # trained Keras models
-├── smiles_Tr.csv               # example CSV input
-└── README.md
-```
-
----
+| File / Folder | Description |
+|--------------|-------------|
+| `predict.py` | Main inference script for ensemble prediction |
+| `predict.sh` | Convenience shell script wrapping common prediction commands |
+| `environment.yml` | Reproducible Conda environment definition |
+| `normalization_stats.json` | Normalization statistics for model inputs/outputs |
+| `models/` | Trained Keras model files |
+| `smiles.csv` | Example CSV input for multi-SMILES/multi-temperature prediction |
+| `README.md` | Project documentation |
 
 ## 📜 Citation
 
@@ -185,3 +182,16 @@ The BibTeX entry will be provided once the paper is accepted.
 - openpyxl 3.0.10
 
 A fully reproducible Conda environment is provided.
+
+---
+
+## 📜 License
+
+MIT License. See `LICENSE` for details.
+
+---
+
+## 👤 Maintained By
+
+Maintained by my name (@my account).  
+COMET, Department of Chemical Engineering, National Taiwan University
