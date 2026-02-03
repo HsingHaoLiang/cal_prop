@@ -1,0 +1,12 @@
+name: cal_prop
+channels:
+  - conda-forge
+dependencies:
+  - python=3.7.16
+  - pip
+  - pip:
+      - tensorflow==2.3.0
+      - numpy==1.18.5
+      - pandas==1.3.5
+      - openpyxl==3.1.3
+
