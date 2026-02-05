@@ -523,7 +523,7 @@ def _progress_init(enabled: bool, label: str, n_rows: int, n_models: int):
         return None
     total = int(n_rows) * int(n_models)
     total = max(total, 1)
-    print(f"[INFO] {label}: rows={int(n_rows)} models={int(n_models)} total_work=rows?models={total}")
+    print(f"[INFO] {label}: rows={int(n_rows)} models={int(n_models)} total_work={total}")
     return {"label": label, "n_rows": int(n_rows), "n_models": int(n_models), "total": total, "done": 0, "last_pct": -1}
 
 def _progress_step(st, done_rows: int, *, i=None, j=None):
