@@ -14,7 +14,7 @@ Tasks:
 Example: 
   python predict.py \
     --task both_real --rep FP \
-    --smiles-csv smiles.csv --smiles-col smiles --temp-col "T(K)" \
+    --input-csv smiles.csv --smiles-col smiles --temp-col "T(K)" \
     --i-list 1-10 --j-list 1-10 \
     --out-csv out.csv
 """
@@ -370,23 +370,18 @@ def build_arr_for_TbTcPcw(base_list):
         row.append(b["id_num"])
         row.extend(b["vec"].tolist())
 
-        # T_PRSAC(11), P_PRSAC(11)
         row.extend([0.0] * 11)
         row.extend([0.0] * 11)
 
-        # T_predi, P_predi
         row.append(0.0)
         row.append(0.0)
 
-        # Tb_PRSAC, Tc_PRSAC, Pc_PRSAC
         row.append(float(b["Tb0"]) if np.isfinite(b["Tb0"]) else 0.0)
         row.append(float(b["Tc0"]) if np.isfinite(b["Tc0"]) else 0.0)
         row.append(float(b["lnPc0"]) if np.isfinite(b["lnPc0"]) else 0.0)
 
-        # pvap, Tb, Tc, Pc placeholders
         row.extend([0.0, 0.0, 0.0, 0.0])
 
-        # optional, w_exp, w_PRSAC
         row.append(float(b["sum_over_V"]) if np.isfinite(b["sum_over_V"]) else 0.0)
         row.append(0.0)
         row.append(float(b["w0"]) if np.isfinite(b["w0"]) else 0.0)
@@ -428,11 +423,11 @@ def build_arr_for_pvap_member_real(
             row.extend(b["vec"].tolist())
             row.extend(Tr_grid.tolist())
             row.extend(lnPr_grid.tolist())
-            row.append(Tr)          # T_predi stores Tr
-            row.append(lnPr_cal)    # P_predi stores lnPr_cal
+            row.append(Tr)          
+            row.append(lnPr_cal)    
             row.append(Tb_i)
             row.append(Tc_i)
-            row.append(lnPc_i)      # Pc_PRSAC stores lnPc
+            row.append(lnPc_i)      
             row.extend([0.0, 0.0, 0.0, 0.0])
             row.append(float(b["sum_over_V"]) if np.isfinite(b["sum_over_V"]) else 0.0)
             row.append(0.0)
@@ -482,11 +477,9 @@ def build_arr_for_pvap_reduced_per_smiles(base_list, trs_map, tr_start_range, n_
         c1, c2, c3, c4 = b["c"]
 
         Tr_use = list(trs_map.get(b["smiles"], []))
-        # ensure anchor
         if not any(abs(t - 1.0) < 1e-12 for t in Tr_use):
             Tr_use.append(1.0)
 
-        # sort ascending (so terminal (1.0) naturally last if > others)
         Tr_use = sorted(set([float(t) for t in Tr_use]))
 
         for Tr in Tr_use:
@@ -525,16 +518,38 @@ def dump_space_txt(arr: np.ndarray, path: str):
         for r in arr:
             f.write(" ".join(str(x) for x in r.tolist()) + "\n")
 
+def _progress_init(enabled: bool, label: str, n_rows: int, n_models: int):
+    if not enabled:
+        return None
+    total = int(n_rows) * int(n_models)
+    total = max(total, 1)
+    print(f"[INFO] {label}: rows={int(n_rows)} models={int(n_models)} total_work=rows?models={total}")
+    return {"label": label, "n_rows": int(n_rows), "n_models": int(n_models), "total": total, "done": 0, "last_pct": -1}
+
+def _progress_step(st, done_rows: int, *, i=None, j=None):
+    if st is None:
+        return
+    st["done"] += int(done_rows)
+    pct = int(st["done"] * 100 / st["total"])
+
+    if pct >= st["last_pct"] + 5 or pct == 100:
+        tail = ""
+        if i is not None and j is not None:
+            tail = f" [i={i}, j={j}]"
+        print(f"[PROGRESS] {st['label']}: {st['done']}/{st['total']} ({pct}%)")
+        st["last_pct"] = pct
+
+
 def parse_args():
     p = argparse.ArgumentParser()
 
     p.add_argument("--xlsx-path", default="input_features.xlsx")
 
     p.add_argument("--smiles", nargs="*", default=[], help='One or more SMILES. Example: --smiles "CCO" "CCN"')
-    p.add_argument("--smiles-csv", default="", help="CSV file containing smiles (and optionally per-row temps/Tr).")
-    p.add_argument("--smiles-col", default="smiles", help="smiles column in smiles-csv.")
-    p.add_argument("--temp-col", default="T(K)", help="temperature column in smiles-csv.")
-    p.add_argument("--tr-col", default="Tr", help="Tr column in smiles-csv.")
+    p.add_argument("--input-csv", "--smiles-csv",  dest="input_csv", default="", help="CSV file containing smiles (and optionally per-row temps/Tr).")
+    p.add_argument("--smiles-col", default="smiles", help="smiles column in input-csv.")
+    p.add_argument("--temp-col", default="T(K)", help="temperature column in input-csv.")
+    p.add_argument("--tr-col", default="Tr", help="Tr column in input-csv.")
     p.add_argument("--skip-missing", action="store_true")
 
     p.add_argument("--temps", default="", help="Comma-separated temperatures in K, e.g. 298.15,350,400")
@@ -556,6 +571,8 @@ def parse_args():
     p.add_argument("--out-csv", default="")
     p.add_argument("--debug-txt", default="",)
 
+    p.add_argument("--progress", action="store_true", help="Show progress as done/total for ensemble inference.")
+
     return p.parse_args()
 
 def main():
@@ -575,13 +592,13 @@ def main():
     if args.smiles and len(args.smiles) > 0:
         smiles_list_in = [str(s).strip() for s in args.smiles if str(s).strip()]
 
-    elif args.smiles_csv.strip():
-        df = pd.read_csv(args.smiles_csv)
+    elif args.input_csv.strip():
+        df = pd.read_csv(args.input_csv)
         source_df = df
 
         sc = _find_col_case_insensitive(df, args.smiles_col)
         if sc is None:
-            raise ValueError(f"--smiles-col '{args.smiles_col}' not found in {args.smiles_csv}")
+            raise ValueError(f"--smiles-col '{args.smiles_col}' not found in {args.input_csv}")
 
         smiles_list_in = df[sc].astype(str).map(str.strip).tolist()
 
@@ -600,7 +617,7 @@ def main():
                         continue
                     trs_map_in.setdefault(smi, []).append(float(tr))
     else:
-        raise ValueError("Provide either --smiles or --smiles-csv")
+        raise ValueError("Provide either --smiles or --smiles-csv or --input-csv")
 
     seen = set()
     smiles_order_list = []
@@ -680,6 +697,8 @@ def main():
     arr_ttpcw = build_arr_for_TbTcPcw(base_list)
     test_ttpcw = split_columns(arr_ttpcw)
 
+    _st_tb = _progress_init(args.progress, 'TbTcPcw', n_rows=len(arr_ttpcw), n_models=len(I_LIST) * len(J_LIST))
+
     for i in I_LIST:
         stats = get_stats(STATS, args.rep, i, args.stats_json)
         inp_ttpcw = prep_inputs_TbTcPcw(test_ttpcw, stats)
@@ -702,6 +721,8 @@ def main():
             member_Tc.append(Tc)
             member_lnPc.append(lnPc)
             member_w.append(w_pred)
+
+            _progress_step(_st_tb, done_rows=len(arr_ttpcw), i=i, j=j)
 
     Tb_mean, Tb_std = stack_mean_std(member_Tb)
     Tc_mean, Tc_std = stack_mean_std(member_Tc)
@@ -748,6 +769,8 @@ def main():
 
         test = split_columns(arr_pvap)
 
+        _st_pvap = _progress_init(args.progress, 'Pvap(reduced)', n_rows=len(arr_pvap), n_models=len(I_LIST) * len(J_LIST))
+
         all_lnPr = []
 
         for i in I_LIST:
@@ -769,6 +792,8 @@ def main():
                 y_adj = shift_by_id_lastpoint(y, inp_pvap["pvap_norm"], test["id"])
                 y_lnPr = renorm(y_adj, stats["ave_P"], stats["std_P"]).reshape(-1)
                 all_lnPr.append(y_lnPr)
+
+                _progress_step(_st_pvap, done_rows=len(arr_pvap), i=i, j=j)
 
         lnPr_mean, lnPr_std = stack_mean_std(all_lnPr)
 
@@ -819,6 +844,8 @@ def main():
 
     debug_txt_written = False
 
+    _st_pvap_real = None
+
     smiles_for_rows = None
     T_for_rows = None
     rows_per_smiles_list = None
@@ -845,6 +872,8 @@ def main():
             smiles_for_rows = smiles_for_rows_m
             T_for_rows = T_for_rows_m
             rows_per_smiles_list = rows_per_smiles_list_m
+
+            _st_pvap_real = _progress_init(args.progress, 'Pvap(real)', n_rows=arr_pvap_m.shape[0], n_models=len(member_Tc))
 
         if args.debug_txt.strip() and (not debug_txt_written):
             dump_space_txt(arr_pvap_m, args.debug_txt.strip())
@@ -886,6 +915,8 @@ def main():
 
         lnP_pred = lnPr_pred + lnPc_rep
         all_lnP_members.append(lnP_pred)
+
+        _progress_step(_st_pvap_real, done_rows=arr_pvap_m.shape[0], i=i, j=j)
 
     lnP_mean, lnP_std = stack_mean_std(all_lnP_members)
     Tr_mean, Tr_std = stack_mean_std(all_Tr_members)
