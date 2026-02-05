@@ -100,14 +100,15 @@ Example (real vapor pressure + properties, CSV input):
 ```bash
 python predict.py \
   --xlsx-path input_features.xlsx \
-  --smiles-csv example.csv --smiles-col smiles --temp-col "T(K)" \
+  --input-csv example.csv --smiles-col smiles --temp-col "T(K)" \
   --model-dir ./model_save \
   --stats-json normalization_stats.json \
   --rep FP \
   --task both_real \
   --i-list 1-10 \
   --j-list 1-10 \
-  --out-csv output.csv
+  --out-csv output.csv \
+  --progress
 ```
 
 > If your script uses `--tr-col "T(K)"` for a real-temperature task, rename it to `--temp-col "T(K)"` (or adjust according to the argument name in your `predict.py`).
@@ -134,14 +135,15 @@ The current `predict.sh` content is:
 ```bash
 python predict.py \
   --xlsx-path input_features.xlsx \
-  --smiles-csv example.csv --smiles-col smiles --tr-col "T(K)" \
+  --input-csv example.csv --smiles-col smiles --tr-col "T(K)" \
   --model-dir ./model_save \
   --stats-json normalization_stats.json \
   --rep FP \
   --task both_real \
   --i-list 1-10 \
   --j-list 1-10 \
-  --out-csv output.csv
+  --out-csv output.csv \
+  --progress
 ```
 
 Edit `predict.sh` to customize `--task`, `--rep`, input CSV path/column names, ensemble ranges, and output path.
