@@ -181,7 +181,7 @@ For thermodynamic properties, the output includes:
 For vapor pressure predictions, the corresponding prediction, ensemble standard
 deviation, and expected error are also reported.
 
-The expected error estimates the possible error of each prediction. A smaller value generally indicates a more reliable prediction. It is provided as a reliability reference, not as a confidence interval.
+The expected error estimates the possible error of each prediction. A smaller value generally indicates a more reliable prediction.
 
 ## 📁 Repository Structure
 
