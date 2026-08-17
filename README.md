@@ -223,8 +223,8 @@ and training methodology.
 - Python 3.7.16
 - TensorFlow 2.3.0
 - NumPy 1.18.5
-- Pandas 1.1.5
-- openpyxl 3.0.10
+- Pandas 1.3.5
+- openpyxl 3.1.3
 
 A fully reproducible Conda environment is provided.
 
