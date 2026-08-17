@@ -68,7 +68,7 @@ pip install tensorflow-gpu==2.3.0
 
 ---
 
-### Option 2: Installation from Source (Conda, fully reproducible)
+### Option 2: Installation with Conda (recommended for reproducibility)
 
 ```bash
 conda env create -f environment.yml
@@ -171,9 +171,7 @@ For thermodynamic properties, the output includes:
 For vapor pressure predictions, the corresponding prediction, ensemble standard
 deviation, and expected error are also reported.
 
-The expected error models use the ensemble prediction and its dispersion as
-inputs to estimate the likely absolute prediction error. These estimates are
-intended as a reliability indicator rather than a formal confidence interval.
+The expected error estimates the possible error of each prediction. A smaller value generally indicates a more reliable prediction. It is provided as a reliability reference, not as a confidence interval.
 
 ## 📁 Repository Structure
 
