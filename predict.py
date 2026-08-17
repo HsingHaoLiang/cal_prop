@@ -2,7 +2,6 @@
 - Support CSV with multiple rows: (smiles, T(K)) for *_real tasks (per-smiles, per-T).
 - Support CSV with multiple rows: (smiles, Tr)  for *_reduced tasks (per-smiles, per-Tr).
     * If CSV contains only smiles column, you can still use --temps (for *_real) or --trs (for *_reduced).
-other can see help in argument
 
 Tasks:
   - pvap_real      : input (smiles, T[K]) -> predict lnP(Pa) (via Tc reduce -> pvap -> +lnPc)
@@ -225,10 +224,10 @@ def make_Tr_grid(rng, n):
 
 
 def load_merged_sheets(xlsx_path: str):
-    fp  = pd.read_excel(xlsx_path, sheet_name="FP")
-    sig = pd.read_excel(xlsx_path, sheet_name="sigma_profile")
-    wag = pd.read_excel(xlsx_path, sheet_name="PRSAC Wagner")
-    opt = pd.read_excel(xlsx_path, sheet_name="optional features")
+    fp  = pd.read_excel(xlsx_path, sheet_name="FP", engine="openpyxl")
+    sig = pd.read_excel(xlsx_path, sheet_name="sigma_profile", engine="openpyxl")
+    wag = pd.read_excel(xlsx_path, sheet_name="PRSAC Wagner", engine="openpyxl")
+    opt = pd.read_excel(xlsx_path, sheet_name="optional features", engine="openpyxl")
 
     for df in (fp, sig, wag, opt):
         if "id" not in df.columns:
@@ -540,6 +539,481 @@ def _progress_step(st, done_rows: int, *, i=None, j=None):
         st["last_pct"] = pct
 
 
+
+# ============================================================
+# Reliability / expected-error
+# ============================================================
+
+ERROR_EPS = 1e-8
+
+# It uses only the target property's own prediction/STD/relative STD.
+# lnPr additionally uses the current Tr.
+EXPECTED_ERROR_FEATURES = {
+    "Tb": ["Tb_pred", "Tb_std", "Tb_relstd"],
+    "Tc": ["Tc_pred", "Tc_std", "Tc_relstd"],
+    "lnPc": ["lnPc_pred", "lnPc_std", "lnPc_relstd"],
+    "w": ["w_pred", "w_std", "w_relstd"],
+    "lnPr": ["lnPr_pred", "lnPr_std", "lnPr_current_relstd", "Tr"],
+}
+
+
+def make_compound_error_features(
+    base_list,
+    Tb_mean,
+    Tb_std,
+    Tc_mean,
+    Tc_std,
+    lnPc_mean,
+    lnPc_std,
+    w_mean,
+    w_std,
+):
+    """Build the compound-level features for expected error prediction."""
+    d = pd.DataFrame({
+        "smiles": [b["smiles"] for b in base_list],
+        "Tb_pred": np.asarray(Tb_mean, dtype=float),
+        "Tb_std": np.asarray(Tb_std, dtype=float),
+        "Tc_pred": np.asarray(Tc_mean, dtype=float),
+        "Tc_std": np.asarray(Tc_std, dtype=float),
+        "lnPc_pred": np.asarray(lnPc_mean, dtype=float),
+        "lnPc_std": np.asarray(lnPc_std, dtype=float),
+        "w_pred": np.asarray(w_mean, dtype=float),
+        "w_std": np.asarray(w_std, dtype=float),
+    })
+
+    for pred_col, std_col in [
+        ("Tb_pred", "Tb_std"),
+        ("Tc_pred", "Tc_std"),
+        ("lnPc_pred", "lnPc_std"),
+        ("w_pred", "w_std"),
+    ]:
+        d[std_col.replace("_std", "_relstd")] = (
+            d[std_col] / (np.abs(d[pred_col]) + ERROR_EPS)
+        )
+
+    return d
+
+
+# ------------------------------------------------------------
+# Portable HistGradientBoostingRegressor inference
+# ------------------------------------------------------------
+
+def load_portable_hgb(npz_path):
+    z = np.load(npz_path, allow_pickle=False)
+
+    required = [
+        "feature_columns",
+        "calibration_scale",
+        "baseline",
+        "tree_offsets",
+        "value",
+        "feature_idx",
+        "threshold",
+        "missing_go_to_left",
+        "left",
+        "right",
+        "is_leaf",
+        "is_categorical",
+    ]
+    missing = [k for k in required if k not in z.files]
+    if missing:
+        raise ValueError(
+            f"invalid portable HGB NPZ: {npz_path}; missing keys={missing}"
+        )
+
+    return {
+        "feature_columns": z["feature_columns"].tolist(),
+        "calibration_scale": float(z["calibration_scale"]),
+        "baseline": float(z["baseline"]),
+        "tree_offsets": z["tree_offsets"],
+        "value": z["value"],
+        "feature_idx": z["feature_idx"],
+        "threshold": z["threshold"],
+        "missing_go_to_left": z["missing_go_to_left"],
+        "left": z["left"],
+        "right": z["right"],
+        "is_leaf": z["is_leaf"],
+        "is_categorical": z["is_categorical"],
+    }
+
+
+def predict_one_tree(model, X, start, end):
+    n_samples = X.shape[0]
+    pred = np.empty(n_samples, dtype=np.float64)
+
+    for i in range(n_samples):
+        node = 0  # tree-local node index
+
+        while True:
+            global_node = start + node
+
+            if model["is_leaf"][global_node]:
+                pred[i] = model["value"][global_node]
+                break
+
+            if model["is_categorical"][global_node]:
+                raise NotImplementedError(
+                    "portable HGB predictor does not support categorical splits."
+                )
+
+            feature = int(model["feature_idx"][global_node])
+            threshold = float(model["threshold"][global_node])
+            x = X[i, feature]
+
+            if np.isnan(x):
+                go_left = bool(model["missing_go_to_left"][global_node])
+            else:
+                go_left = x <= threshold
+
+            if go_left:
+                node = int(model["left"][global_node])
+            else:
+                node = int(model["right"][global_node])
+
+    return pred
+
+
+def portable_hgb_predict(model, X):
+    X = np.asarray(X, dtype=np.float32)
+
+    if X.ndim != 2:
+        raise ValueError(f"X must be 2-D, got shape={X.shape}")
+
+    expected_n_features = len(model["feature_columns"])
+    if X.shape[1] != expected_n_features:
+        raise ValueError(
+            f"portable HGB expects {expected_n_features} features, "
+            f"but X has {X.shape[1]}"
+        )
+
+    prediction = np.full(
+        X.shape[0],
+        model["baseline"],
+        dtype=np.float64,
+    )
+
+    offsets = model["tree_offsets"]
+    for t in range(len(offsets) - 1):
+        start = int(offsets[t])
+        end = int(offsets[t + 1])
+        prediction += predict_one_tree(model, X, start, end)
+
+    return prediction
+
+
+def load_expected_error_npz(error_model_dir, task):
+    path = os.path.join(
+        error_model_dir,
+        f"{task}_expected_absolute_error.npz",
+    )
+
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"missing expected-error NPZ model: {path}\n"
+            "Expected portable NPZ file."
+        )
+
+    model = load_portable_hgb(path)
+
+    expected_cols = EXPECTED_ERROR_FEATURES[task]
+    actual_cols = list(model["feature_columns"])
+    if actual_cols != expected_cols:
+        raise ValueError(
+            f"Unexpected feature columns in {path}.\n"
+            f"Task={task}\n"
+            f"Expected features: {expected_cols}\n"
+            f"NPZ contains: {actual_cols}\n"
+            "Please provide an expected-error model with matching feature columns."
+        )
+
+    return model
+
+
+def apply_expected_error_npz(df_features, portable_model):
+    cols = list(portable_model["feature_columns"])
+    missing = [c for c in cols if c not in df_features.columns]
+    if missing:
+        raise KeyError(
+            "Reliability feature table is missing columns required by portable HGB: "
+            + ", ".join(missing)
+        )
+
+    X = (
+        df_features[cols]
+        .replace([np.inf, -np.inf], np.nan)
+        .to_numpy(dtype=np.float32)
+    )
+
+    if not np.isfinite(X).all():
+        bad = np.where(~np.isfinite(X))
+        raise ValueError(
+            "non-finite reliability features detected; "
+            f"first bad position=({bad[0][0]}, {bad[1][0]}) "
+            f"column={cols[bad[1][0]]}"
+        )
+
+    # Training/evaluation clipped expected-error predictions at zero.
+    raw = np.maximum(
+        portable_hgb_predict(portable_model, X),
+        0.0,
+    )
+    scale = float(portable_model.get("calibration_scale", 1.0))
+    return raw * scale
+
+
+def get_error_model_dir(args):
+    """Resolve portable expected-error model directory."""
+    return (
+        args.error_model_dir.strip()
+        if args.error_model_dir.strip()
+        else args.model_dir
+    )
+
+
+def check_expected_error_models(error_model_dir, tasks):
+    """Fail early if any required portable NPZ is missing."""
+    for task_name in tasks:
+        epath = os.path.join(
+            error_model_dir,
+            f"{task_name}_expected_absolute_error.npz",
+        )
+        if not os.path.exists(epath):
+            raise FileNotFoundError(
+                f"missing expected-error NPZ model: {epath}"
+            )
+
+
+def add_compound_expected_error_columns(
+    out,
+    compound_features,
+    error_model_dir,
+):
+    """Add expected absolute errors for Tb/Tc/lnPc/w."""
+    prop_errors = pd.DataFrame({"smiles": compound_features["smiles"]})
+
+    for task in ["Tb", "Tc", "lnPc", "w"]:
+        model = load_expected_error_npz(error_model_dir, task)
+        prop_errors[f"{task}_expected_error"] = apply_expected_error_npz(
+            compound_features,
+            model,
+        )
+
+    return out.merge(
+        prop_errors,
+        on="smiles",
+        how="left",
+        validate="many_to_one",
+    )
+
+
+def add_lnpr_expected_error_column(
+    out,
+    compound_features,
+    lnPr_mean,
+    lnPr_std,
+    Tr_values,
+    error_model_dir,
+    output_column="lnPr_expected_error",
+    terminal_mode="zero",
+):
+    """
+    Add expected absolute error for lnPr.
+
+    input features:
+        [lnPr_pred, lnPr_std, lnPr_current_relstd, Tr]
+
+    terminal_mode:
+        "zero" -> Tr=1 reduced-pressure row has lnPr=0 exactly, so expected error=0.
+        "lnPc" -> for real-pressure output, Tr=1 means lnP=lnPc, so use lnPc expected error.
+    """
+    row_features = out[["smiles"]].merge(
+        compound_features,
+        on="smiles",
+        how="left",
+        validate="many_to_one",
+    )
+
+    row_features["lnPr_pred"] = np.asarray(lnPr_mean, dtype=float)
+    row_features["lnPr_std"] = np.asarray(lnPr_std, dtype=float)
+    row_features["lnPr_current_relstd"] = (
+        row_features["lnPr_std"]
+        / (np.abs(row_features["lnPr_pred"]) + ERROR_EPS)
+    )
+    row_features["Tr"] = np.asarray(Tr_values, dtype=float)
+
+    lnpr_model = load_expected_error_npz(error_model_dir, "lnPr")
+    lnpr_expected_error = apply_expected_error_npz(row_features, lnpr_model)
+
+    result = out.copy()
+    result[output_column] = lnpr_expected_error
+
+    terminal_mask = np.isclose(
+        np.asarray(Tr_values, dtype=float),
+        1.0,
+        atol=1e-6,
+        rtol=0,
+    )
+
+    if terminal_mask.any():
+        if terminal_mode == "zero":
+            result.loc[terminal_mask, output_column] = 0.0
+        elif terminal_mode == "lnPc":
+            if "lnPc_expected_error" not in result.columns:
+                raise KeyError(
+                    "terminal_mode='lnPc' requires lnPc_expected_error column."
+                )
+            result.loc[terminal_mask, output_column] = result.loc[
+                terminal_mask,
+                "lnPc_expected_error",
+            ].to_numpy()
+        else:
+            raise ValueError(
+                f"unknown terminal_mode={terminal_mode!r}; use 'zero' or 'lnPc'."
+            )
+
+    return result
+
+
+def add_expected_error_columns(
+    out,
+    compound_features,
+    real_lnPr_mean,
+    real_lnPr_std,
+    Tr_mean,
+    error_model_dir,
+):
+    """
+    Add expected absolute error estimates for real-temperature output.
+
+    Tb/Tc/lnPc/w features:
+        [target prediction, target std, target relative std]
+
+    lnPr features:
+        [lnPr prediction, lnPr std, lnPr relative std, Tr]
+
+    For real-temperature rows, the lnPr expected error is reported beside lnP as
+    `lnP_expected_error`. At terminal Tr=1, lnP=lnPc, so the lnPc expected error
+    is used because the lnPr reliability model was trained only on Tr=0.4..0.9.
+    """
+    result = add_compound_expected_error_columns(
+        out=out,
+        compound_features=compound_features,
+        error_model_dir=error_model_dir,
+    )
+
+    result = add_lnpr_expected_error_column(
+        out=result,
+        compound_features=compound_features,
+        lnPr_mean=real_lnPr_mean,
+        lnPr_std=real_lnPr_std,
+        Tr_values=Tr_mean,
+        error_model_dir=error_model_dir,
+        output_column="lnP_expected_error",
+        terminal_mode="lnPc",
+    )
+
+    return result
+
+
+def reorder_both_real_output_expected(out):
+    preferred = [
+        "smiles",
+        "T(K)",
+        "Tr_mean",
+        "Tr_std",
+        "lnP_mean(Pa)",
+        "lnP_std",
+        "lnP_expected_error",
+        "Tb_mean(K)",
+        "Tb_std",
+        "Tb_expected_error",
+        "Tc_mean(K)",
+        "Tc_std",
+        "Tc_expected_error",
+        "lnPc_mean(Pa)",
+        "lnPc_std",
+        "lnPc_expected_error",
+        "w_mean",
+        "w_std",
+        "w_expected_error",
+    ]
+    cols = [c for c in preferred if c in out.columns]
+    cols += [c for c in out.columns if c not in cols]
+    return out[cols]
+
+
+def reorder_pvap_real_output_expected(out):
+    """
+    pvap_real only reports vapor-pressure related outputs.
+
+    Tb/Tc/lnPc/w are still calculated internally because they are required by
+    the coupled vapor-pressure model and by the Tr=1 expected-error handling,
+    but they are intentionally omitted from the final CSV.
+    """
+    preferred = [
+        "smiles",
+        "T(K)",
+        "Tr_mean",
+        "Tr_std",
+        "lnP_mean(Pa)",
+        "lnP_std",
+        "lnP_expected_error",
+    ]
+    cols = [c for c in preferred if c in out.columns]
+    return out[cols]
+
+
+def reorder_reduced_output_expected(out, include_properties=False):
+    preferred = [
+        "smiles",
+        "Tr",
+        "lnPr_mean",
+        "lnPr_std",
+        "lnPr_expected_error",
+    ]
+
+    if include_properties:
+        preferred += [
+            "Tb_mean(K)",
+            "Tb_std",
+            "Tb_expected_error",
+            "Tc_mean(K)",
+            "Tc_std",
+            "Tc_expected_error",
+            "lnPc_mean(Pa)",
+            "lnPc_std",
+            "lnPc_expected_error",
+            "w_mean",
+            "w_std",
+            "w_expected_error",
+        ]
+
+    cols = [c for c in preferred if c in out.columns]
+    cols += [c for c in out.columns if c not in cols]
+    return out[cols]
+
+
+def reorder_tb_tcpw_output_expected(out):
+    preferred = [
+        "smiles",
+        "Tb_mean(K)",
+        "Tb_std",
+        "Tb_expected_error",
+        "Tc_mean(K)",
+        "Tc_std",
+        "Tc_expected_error",
+        "lnPc_mean(Pa)",
+        "lnPc_std",
+        "lnPc_expected_error",
+        "w_mean",
+        "w_std",
+        "w_expected_error",
+    ]
+    cols = [c for c in preferred if c in out.columns]
+    cols += [c for c in out.columns if c not in cols]
+    return out[cols]
+
+
 def parse_args():
     p = argparse.ArgumentParser()
 
@@ -561,6 +1035,14 @@ def parse_args():
     p.add_argument("--seed", type=int, default=None)
 
     p.add_argument("--model-dir", default="./model_save")
+    p.add_argument(
+        "--error-model-dir",
+        default="",
+        help=(
+            "Directory containing expected-error portable NPZ files. "
+            "If omitted, --model-dir is used."
+        ),
+    )
     p.add_argument("--stats-json", default="normalization_stats.json")
     p.add_argument("--rep", default="FP", choices=["FP", "sigma"])
     p.add_argument("--task", default="both_real",
@@ -741,6 +1223,35 @@ def main():
             "w_mean": w_mean,
             "w_std": w_std,
         })
+
+        # Expected errors for all four compound-level properties.
+        error_model_dir = get_error_model_dir(args)
+        check_expected_error_models(
+            error_model_dir,
+            ["Tb", "Tc", "lnPc", "w"],
+        )
+        compound_error_features = make_compound_error_features(
+            base_list=base_list,
+            Tb_mean=Tb_mean,
+            Tb_std=Tb_std,
+            Tc_mean=Tc_mean,
+            Tc_std=Tc_std,
+            lnPc_mean=lnPc_mean,
+            lnPc_std=lnPc_std,
+            w_mean=w_mean,
+            w_std=w_std,
+        )
+        out = add_compound_expected_error_columns(
+            out=out,
+            compound_features=compound_error_features,
+            error_model_dir=error_model_dir,
+        )
+        out = reorder_tb_tcpw_output_expected(out)
+        print(
+            "[INFO] added expected-error columns from portable NPZ models: "
+            f"{error_model_dir}"
+        )
+
         out["__order"] = out["smiles"].map(smiles_order).astype(int)
         out = out.sort_values(["__order"]).reset_index(drop=True).drop(columns="__order")
 
@@ -825,6 +1336,58 @@ def main():
             out["w_mean"] = np.asarray(w_mean_r, dtype=np.float32)
             out["w_std"] = np.asarray(w_std_r, dtype=np.float32)
 
+        # ----------------------------------------------------
+        # Expected error for reduced-temperature tasks
+        # ----------------------------------------------------
+        error_model_dir = get_error_model_dir(args)
+
+        required_error_tasks = ["lnPr"]
+        if args.task == "both_reduced":
+            required_error_tasks += ["Tb", "Tc", "lnPc", "w"]
+        check_expected_error_models(error_model_dir, required_error_tasks)
+
+        compound_error_features = make_compound_error_features(
+            base_list=base_list,
+            Tb_mean=Tb_mean,
+            Tb_std=Tb_std,
+            Tc_mean=Tc_mean,
+            Tc_std=Tc_std,
+            lnPc_mean=lnPc_mean,
+            lnPc_std=lnPc_std,
+            w_mean=w_mean,
+            w_std=w_std,
+        )
+
+        # For reduced output, Tr=1 has lnPr=0 exactly by construction.
+        # The lnPr expected-error model was trained on Tr=0.4..0.9, so we
+        # do not extrapolate it at Tr=1; expected error is set to zero.
+        out = add_lnpr_expected_error_column(
+            out=out,
+            compound_features=compound_error_features,
+            lnPr_mean=lnPr_mean,
+            lnPr_std=lnPr_std,
+            Tr_values=Tr_out,
+            error_model_dir=error_model_dir,
+            output_column="lnPr_expected_error",
+            terminal_mode="zero",
+        )
+
+        if args.task == "both_reduced":
+            out = add_compound_expected_error_columns(
+                out=out,
+                compound_features=compound_error_features,
+                error_model_dir=error_model_dir,
+            )
+
+        out = reorder_reduced_output_expected(
+            out,
+            include_properties=(args.task == "both_reduced"),
+        )
+        print(
+            "[INFO] added expected-error columns from portable NPZ models: "
+            f"{error_model_dir}"
+        )
+
         out["__order"] = out["smiles"].map(smiles_order).astype(int)
         out = out.sort_values(["__order", "Tr"]).reset_index(drop=True).drop(columns="__order")
 
@@ -840,6 +1403,7 @@ def main():
         return
 
     all_lnP_members = []
+    all_lnPr_real_members = []
     all_Tr_members = []
 
     debug_txt_written = False
@@ -915,11 +1479,25 @@ def main():
 
         lnP_pred = lnPr_pred + lnPc_rep
         all_lnP_members.append(lnP_pred)
+        all_lnPr_real_members.append(lnPr_pred)
 
         _progress_step(_st_pvap_real, done_rows=arr_pvap_m.shape[0], i=i, j=j)
 
     lnP_mean, lnP_std = stack_mean_std(all_lnP_members)
+    lnPr_real_mean, lnPr_real_std = stack_mean_std(all_lnPr_real_members)
     Tr_mean, Tr_std = stack_mean_std(all_Tr_members)
+
+    compound_error_features = make_compound_error_features(
+        base_list=base_list,
+        Tb_mean=Tb_mean,
+        Tb_std=Tb_std,
+        Tc_mean=Tc_mean,
+        Tc_std=Tc_std,
+        lnPc_mean=lnPc_mean,
+        lnPc_std=lnPc_std,
+        w_mean=w_mean,
+        w_std=w_std,
+    )
 
     Tb_mean_r, Tb_std_r = [], []
     Tc_mean_r, Tc_std_r = [], []
@@ -948,6 +1526,41 @@ def main():
         "w_mean": np.asarray(w_mean_r, dtype=np.float32),
         "w_std": np.asarray(w_std_r, dtype=np.float32),
     })
+
+    # Expected-error reliability using portable NPZ models.
+    error_model_dir = get_error_model_dir(args)
+    check_expected_error_models(
+        error_model_dir,
+        ["Tb", "Tc", "lnPc", "w", "lnPr"],
+    )
+
+    out = add_expected_error_columns(
+        out=out,
+        compound_features=compound_error_features,
+        real_lnPr_mean=lnPr_real_mean,
+        real_lnPr_std=lnPr_real_std,
+        Tr_mean=Tr_mean,
+        error_model_dir=error_model_dir,
+    )
+    # Output columns depend on the requested real-temperature task.
+    #
+    # both_real:
+    #   lnP + Tb/Tc/lnPc/w and all corresponding expected errors.
+    #
+    # pvap_real:
+    #   only vapor-pressure outputs are written. Tb/Tc/lnPc/w are still
+    #   calculated internally because the coupled model needs them.
+    if args.task == "both_real":
+        out = reorder_both_real_output_expected(out)
+    elif args.task == "pvap_real":
+        out = reorder_pvap_real_output_expected(out)
+    else:
+        raise ValueError(f"Unexpected real task: {args.task}")
+
+    print(
+        "[INFO] added expected-error columns from portable NPZ models: "
+        f"{error_model_dir}"
+    )
 
     out["__order"] = out["smiles"].map(smiles_order).astype(int)
     out = out.sort_values(["__order", "T(K)"]).reset_index(drop=True).drop(columns="__order")
