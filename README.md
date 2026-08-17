@@ -54,7 +54,7 @@ where predicted Tc is used to reduce real temperature.
 ### Option 1: Installation via PyPI (recommended for inference)
 
 ```bash
-pip install numpy==1.18.5 pandas==1.1.5 openpyxl==3.1.3 tensorflow==2.3.0
+pip install numpy==1.18.5 pandas==1.3.5 openpyxl==3.1.3 tensorflow==2.3.0
 ```
 
 Optional (legacy GPU setup):
@@ -91,7 +91,7 @@ Expected versions:
 - Python 3.7.16
 - TensorFlow 2.3.0
 - NumPy 1.18.5
-- Pandas 1.1.5
+- Pandas 1.3.5
 - openpyxl 3.1.3
 
 ---
@@ -117,7 +117,6 @@ python predict.py \
   --progress
 ```
 
-> If your script uses `--tr-col "T(K)"` for a real-temperature task, rename it to `--temp-col "T(K)"` (or adjust according to the argument name in your `predict.py`).
 >
 > Note: for `both_real` / `pvap_real`, the CSV should contain a **temperature column in Kelvin** (e.g. `T(K)`).
 
@@ -177,11 +176,11 @@ The expected error estimates the possible error of each prediction. A smaller va
 
 | File / Folder | Description |
 |--------------|-------------|
-| `predict.py` | Main inference script for ensemble prediction |
+| `predict.py` | Main inference script for ensemble prediction and expected error estimation |
 | `predict.sh` | Convenience shell script wrapping common prediction commands |
 | `environment.yml` | Reproducible Conda environment definition |
 | `requirements.txt` | Python package requirements |
-| `input_features.xlsx` | input feature data |
+| `input_features.xlsx` | Input feature data |
 | `normalization_stats.json` | Normalization statistics for model inputs/outputs |
 | `model_save/` | Trained Keras ensemble models and portable HGB expected error models |
 | `example.csv` | Example input for prediction |
