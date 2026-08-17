@@ -54,7 +54,7 @@ where predicted Tc is used to reduce real temperature.
 ### Option 1: Installation via PyPI (recommended for inference)
 
 ```bash
-pip install numpy==1.18.5 pandas==1.1.5 openpyxl==3.0.10 tensorflow==2.3.0
+pip install numpy==1.18.5 pandas==1.1.5 openpyxl==3.1.3 tensorflow==2.3.0
 ```
 
 Optional (legacy GPU setup):
@@ -92,7 +92,7 @@ Expected versions:
 - TensorFlow 2.3.0
 - NumPy 1.18.5
 - Pandas 1.1.5
-- openpyxl 3.0.10
+- openpyxl 3.1.3
 
 ---
 
