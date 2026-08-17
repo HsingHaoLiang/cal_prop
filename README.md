@@ -182,9 +182,11 @@ intended as a reliability indicator rather than a formal confidence interval.
 | `predict.py` | Main inference script for ensemble prediction |
 | `predict.sh` | Convenience shell script wrapping common prediction commands |
 | `environment.yml` | Reproducible Conda environment definition |
+| `requirements.txt` | Python package requirements |
+| `input_features.xlsx` | input feature data |
 | `normalization_stats.json` | Normalization statistics for model inputs/outputs |
-| `models/` | Trained Keras model files |
-| `smiles.csv` | Example CSV input for multi-SMILES/multi-temperature prediction |
+| `model_save/` | Trained Keras ensemble models and portable HGB expected error models |
+| `example.csv` | Example input for prediction |
 | `README.md` | Project documentation |
 
 ## 📜 Citation
