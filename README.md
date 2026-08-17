@@ -77,14 +77,7 @@ conda activate cal_prop
 
 Verify installation:
 ```bash
-python - << EOF
-import sys, numpy, pandas, openpyxl, tensorflow as tf
-print("Python:", sys.version)
-print("TF:", tf.__version__)
-print("NumPy:", numpy.__version__)
-print("Pandas:", pandas.__version__)
-print("openpyxl:", openpyxl.__version__)
-EOF
+python -c "import sys, numpy, pandas, openpyxl, tensorflow as tf; print('Python:', sys.version); print('TF:', tf.__version__); print('NumPy:', numpy.__version__); print('Pandas:', pandas.__version__); print('openpyxl:', openpyxl.__version__)"
 ```
 
 Expected versions:
@@ -102,6 +95,8 @@ Expected versions:
 
 Example (real vapor pressure + properties, CSV input):
 
+#### Linux / macOS
+
 ```bash
 python predict.py \
   --xlsx-path input_features.xlsx \
@@ -117,10 +112,23 @@ python predict.py \
   --progress
 ```
 
->
+#### Windows (Command Prompt / Anaconda Prompt)
+python predict.py ^
+  --xlsx-path input_features.xlsx ^
+  --input-csv example.csv --smiles-col smiles --temp-col "T(K)" ^
+  --model-dir ./model_save ^
+  --error-model-dir ./model_save ^
+  --stats-json normalization_stats.json ^
+  --rep FP ^
+  --task both_real ^
+  --i-list 1-10 ^
+  --j-list 1-10 ^
+  --out-csv output.csv ^
+  --progress
+
 > Note: for `both_real` / `pvap_real`, the CSV should contain a **temperature column in Kelvin** (e.g. `T(K)`).
 
-### Option B: Run using the provided shell script (`predict.sh`)
+### Option B: Run using the provided shell script (`predict.sh`, Linux)
 
 For convenience, this repository provides a wrapper script `predict.sh` which runs an
 equivalent command.
