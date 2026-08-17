@@ -1,7 +1,8 @@
 python predict.py \
   --xlsx-path input_features.xlsx \
-  --input-csv example.csv --smiles-col smiles --tr-col "T(K)" \
+  --input-csv example.csv --smiles-col smiles --temp-col "T(K)" \
   --model-dir ./model_save \
+  --error-model-dir ./model_save \
   --stats-json normalization_stats.json \
   --rep FP \
   --task both_real \
