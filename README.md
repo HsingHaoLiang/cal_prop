@@ -113,6 +113,8 @@ python predict.py \
 ```
 
 #### Windows (Command Prompt / Anaconda Prompt)
+
+```bash
 python predict.py ^
   --xlsx-path input_features.xlsx ^
   --input-csv example.csv --smiles-col smiles --temp-col "T(K)" ^
@@ -125,6 +127,7 @@ python predict.py ^
   --j-list 1-10 ^
   --out-csv output.csv ^
   --progress
+```
 
 > Note: for `both_real` / `pvap_real`, the CSV should contain a **temperature column in Kelvin** (e.g. `T(K)`).
 
