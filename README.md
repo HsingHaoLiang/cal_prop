@@ -95,7 +95,7 @@ Expected versions:
 
 Example (real vapor pressure + properties, CSV input):
 
-#### Linux / macOS
+#### Linux
 
 ```bash
 python predict.py \
@@ -237,7 +237,7 @@ and training methodology.
 - Pandas 1.3.5
 - openpyxl 3.1.3
 
-A fully reproducible Conda environment is provided.
+A tested Conda environment file is provided for reproducible installation.
 
 ---
 
