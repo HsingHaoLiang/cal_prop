@@ -114,7 +114,7 @@ python predict.py \
 
 #### Windows (Command Prompt / Anaconda Prompt)
 
-```bash
+```bat
 python predict.py ^
   --xlsx-path input_features.xlsx ^
   --input-csv example.csv --smiles-col smiles --temp-col "T(K)" ^
