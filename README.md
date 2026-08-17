@@ -7,7 +7,8 @@ representations.
 The tool is designed for **research and reproducible inference**, supporting:
 - Multiple SMILES
 - Multiple temperatures or reduced temperatures
-- Ensemble uncertainty (mean ± std)
+- Ensemble predictions with mean and standard deviation
+- HGB-based expected error estimation
 - Legacy TensorFlow 2.3.0 compatibility
 
 ---
@@ -19,6 +20,10 @@ The tool is designed for **research and reproducible inference**, supporting:
 - Predicts:
   - Vapor pressure
   - Tb, Tc, lnPc, ω
+- Reports:
+  - Ensemble mean prediction
+  - Ensemble standard deviation
+  - HGB predicted expected absolute error
 - Flexible input:
   - Command-line SMILES
   - CSV files (`smiles + T(K)` or `smiles + Tr`)
@@ -102,6 +107,7 @@ python predict.py \
   --xlsx-path input_features.xlsx \
   --input-csv example.csv --smiles-col smiles --temp-col "T(K)" \
   --model-dir ./model_save \
+  --error-model-dir ./model_save \
   --stats-json normalization_stats.json \
   --rep FP \
   --task both_real \
@@ -135,8 +141,9 @@ The current `predict.sh` content is:
 ```bash
 python predict.py \
   --xlsx-path input_features.xlsx \
-  --input-csv example.csv --smiles-col smiles --tr-col "T(K)" \
+  --input-csv example.csv --smiles-col smiles --temp-col "T(K)" \
   --model-dir ./model_save \
+  --error-model-dir ./model_save \
   --stats-json normalization_stats.json \
   --rep FP \
   --task both_real \
@@ -147,6 +154,26 @@ python predict.py \
 ```
 
 Edit `predict.sh` to customize `--task`, `--rep`, input CSV path/column names, ensemble ranges, and output path.
+
+## 📊 Output and Expected Error
+
+The ensemble models provide the mean prediction and standard deviation across
+individual models. In addition, pretrained HistGradientBoosting (HGB) models
+estimate the expected absolute prediction error.
+
+For thermodynamic properties, the output includes:
+
+- `Tb_mean`, `Tb_std`, `Tb_expected_error`
+- `Tc_mean`, `Tc_std`, `Tc_expected_error`
+- `lnPc_mean`, `lnPc_std`, `lnPc_expected_error`
+- `w_mean`, `w_std`, `w_expected_error`
+
+For vapor pressure predictions, the corresponding prediction, ensemble standard
+deviation, and expected error are also reported.
+
+The expected error models use the ensemble prediction and its dispersion as
+inputs to estimate the likely absolute prediction error. These estimates are
+intended as a reliability indicator rather than a formal confidence interval.
 
 ## 📁 Repository Structure
 
