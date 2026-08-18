@@ -1032,7 +1032,7 @@ def parse_args():
     p.add_argument("--tr-start-range", default="0.30,0.31")
     p.add_argument("--n-grid", type=int, default=11)
     p.add_argument("--strict-V", action="store_true")
-    p.add_argument("--seed", type=int, default=None)
+    p.add_argument("--seed", type=int, default=42)
 
     p.add_argument("--model-dir", default="./model_save")
     p.add_argument(
