@@ -204,7 +204,7 @@ This work is currently under preparation for journal publication.
 If you use this code before the paper is published, please cite as:
 
 ```
-Hsin-Hao Liang, Yen-Hsiang Lin, Yi-Pei Li, Shiang-Tai Lin,  "Title (in preparation)", Journal, 2026.
+Hsin-Hao Liang, Yen-Hsiang Lin, Yi-Pei Li, Shiang-Tai Lin,  "Physics-Constrained Hybrid Machine Learning Model for Improved Vapor Pressure Prediction using the PR+COSMOSAC Equation of State", Journal, 2026.
 ```
 
 ---
