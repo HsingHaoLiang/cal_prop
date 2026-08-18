@@ -204,10 +204,8 @@ This work is currently under preparation for journal publication.
 If you use this code before the paper is published, please cite as:
 
 ```
-Author(s), "Title (in preparation)", Journal, Year.
+Hsin-Hao Liang, Yen-Hsiang Lin, Yi-Pei Li, Shiang-Tai Lin,  "Title (in preparation)", Journal, 2026.
 ```
-
-The BibTeX entry will be provided once the paper is accepted.
 
 ---
 
