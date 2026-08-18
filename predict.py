@@ -28,6 +28,17 @@ import tensorflow as tf
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 tf.get_logger().setLevel("ERROR")
 
+# ============================================================
+# Fixed inference configuration
+# These values are part of the trained model input definition
+# and are intentionally not exposed as command-line options.
+# ============================================================
+TR_START_RANGE = (0.30, 0.31)
+N_GRID = 11
+RANDOM_SEED = 42
+STRICT_V = False
+SKIP_MISSING = False
+
 def parse_int_list(s: str, name: str):
     s = (s or "").strip()
     if not s:
@@ -510,12 +521,6 @@ def build_arr_for_pvap_reduced_per_smiles(base_list, trs_map, tr_start_range, n_
 
     return np.asarray(rows, dtype=np.float32), smiles_for_rows, np.asarray(Tr_for_rows, dtype=np.float32), rows_per_smiles_list
 
-
-def dump_space_txt(arr: np.ndarray, path: str):
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        for r in arr:
-            f.write(" ".join(str(x) for x in r.tolist()) + "\n")
 
 def _progress_init(enabled: bool, label: str, n_rows: int, n_models: int):
     if not enabled:
@@ -1024,15 +1029,10 @@ def parse_args():
     p.add_argument("--smiles-col", default="smiles", help="smiles column in input-csv.")
     p.add_argument("--temp-col", default="T(K)", help="temperature column in input-csv.")
     p.add_argument("--tr-col", default="Tr", help="Tr column in input-csv.")
-    p.add_argument("--skip-missing", action="store_true")
 
     p.add_argument("--temps", default="", help="Comma-separated temperatures in K, e.g. 298.15,350,400")
     p.add_argument("--trs", default="", help="Comma-separated Tr for reduced tasks")
 
-    p.add_argument("--tr-start-range", default="0.30,0.31")
-    p.add_argument("--n-grid", type=int, default=11)
-    p.add_argument("--strict-V", action="store_true")
-    p.add_argument("--seed", type=int, default=42)
 
     p.add_argument("--model-dir", default="./model_save")
     p.add_argument(
@@ -1051,7 +1051,6 @@ def parse_args():
     p.add_argument("--j-list", required=True)
 
     p.add_argument("--out-csv", default="")
-    p.add_argument("--debug-txt", default="",)
 
     p.add_argument("--progress", action="store_true", help="Show progress as done/total for ensemble inference.")
 
@@ -1060,8 +1059,8 @@ def parse_args():
 def main():
     args = parse_args()
 
-    if args.seed is not None:
-        np.random.seed(int(args.seed))
+    # Fixed seed keeps the random Tr-grid start reproducible across runs.
+    np.random.seed(RANDOM_SEED)
 
     is_real = args.task in ["pvap_real", "both_real"]
     is_reduced = args.task in ["pvap_reduced", "both_reduced"]
@@ -1129,10 +1128,9 @@ def main():
         for smi in list(trs_map_in.keys()):
             trs_map_in[smi] = sorted(set([float(x) for x in trs_map_in[smi]]))
 
-    rng = parse_float_list(args.tr_start_range, "tr-start-range")
-    if len(rng) != 2:
-        raise ValueError("--tr-start-range must be like '0.30,0.31'")
-    tr_start_range = (float(rng[0]), float(rng[1]))
+    # Fixed model configuration: start is still sampled uniformly from
+    # 0.30-0.31, but RANDOM_SEED makes the sequence deterministic.
+    tr_start_range = TR_START_RANGE
 
     assert os.path.exists(args.xlsx_path), f"missing: {args.xlsx_path}"
     SHEETS = load_merged_sheets(args.xlsx_path)
@@ -1148,10 +1146,10 @@ def main():
     skipped = []
     for smi in smiles_order_list:
         try:
-            b = build_base_features_for_smiles(SHEETS, smi, rep_builder, strict_V=bool(args.strict_V))
+            b = build_base_features_for_smiles(SHEETS, smi, rep_builder, strict_V=STRICT_V)
             base_list.append(b)
         except Exception as e:
-            if args.skip_missing:
+            if SKIP_MISSING:
                 skipped.append((smi, str(e)))
                 continue
             raise
@@ -1271,12 +1269,8 @@ def main():
             base_list=base_list,
             trs_map=trs_map,
             tr_start_range=tr_start_range,
-            n_grid=args.n_grid
+            n_grid=N_GRID
         )
-
-        if args.debug_txt.strip():
-            dump_space_txt(arr_pvap, args.debug_txt.strip())
-            print("[INFO] wrote debug txt:", args.debug_txt.strip())
 
         test = split_columns(arr_pvap)
 
@@ -1406,8 +1400,6 @@ def main():
     all_lnPr_real_members = []
     all_Tr_members = []
 
-    debug_txt_written = False
-
     _st_pvap_real = None
 
     smiles_for_rows = None
@@ -1428,7 +1420,7 @@ def main():
             Tb_pred=Tb_m,
             w_pred=w_m,
             tr_start_range=tr_start_range,
-            n_grid=args.n_grid,
+            n_grid=N_GRID,
             include_terminal=True
         )
 
@@ -1438,11 +1430,6 @@ def main():
             rows_per_smiles_list = rows_per_smiles_list_m
 
             _st_pvap_real = _progress_init(args.progress, 'Pvap(real)', n_rows=arr_pvap_m.shape[0], n_models=len(member_Tc))
-
-        if args.debug_txt.strip() and (not debug_txt_written):
-            dump_space_txt(arr_pvap_m, args.debug_txt.strip())
-            print("[INFO] wrote debug txt (member-0):", args.debug_txt.strip())
-            debug_txt_written = True
 
         test = split_columns(arr_pvap_m)
 
